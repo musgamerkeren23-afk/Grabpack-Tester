@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GrabPack 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;}
+canvas{display:block;}
+
+/* ─── LOADING ─── */
+#ls{position:fixed;inset:0;z-index:9999;background:#1a0a2e;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;color:#fff;transition:opacity 1s;}
+#ls.gone{opacity:0;pointer-events:none;}
+.ll{font-size:clamp(28px,6vw,58px);font-weight:900;letter-spacing:4px;color:#00e5ff;
+  text-shadow:0 0 30px #00e5ff,0 0 60px #00e5ff88;margin-bottom:6px;
+  animation:cpulse 2s ease-in-out infinite;}
+@keyframes cpulse{0%,100%{text-shadow:0 0 30px #00e5ff,0 0 60px #00e5ff44;}
+  50%{text-shadow:0 0 50px #00e5ff,0 0 100px #00e5ff99,0 0 150px #00e5ff33;}}
+.ls2{font-size:10px;letter-spacing:8px;color:#00e5ff66;margin-bottom:50px;text-transform:uppercase;}
+.lbw{width:min(300px,75vw);height:2px;background:#ffffff11;margin-bottom:14px;}
+.lb{height:100%;background:linear-gradient(90deg,#00e5ff,#7c4dff);width:0%;transition:width .08s;
+  box-shadow:0 0 8px #00e5ff;}
+.lt{font-size:9px;color:#00e5ff55;letter-spacing:3px;text-transform:uppercase;margin-bottom:28px;}
+.lp{color:#00e5ff;}
+.skp{background:none;border:1px solid #00e5ff33;color:#00e5ff55;padding:7px 20px;font-size:8px;
+  letter-spacing:3px;text-transform:uppercase;cursor:pointer;transition:all .3s;font-family:inherit;}
+.skp:hover{border-color:#00e5ff;color:#00e5ff;}
+
+/* ─── CLICK TO START ─── */
+#cs{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;background:rgba(10,5,30,.92);color:#fff;gap:12px;}
+#cs h2{font-size:14px;letter-spacing:8px;color:#00e5ff;text-transform:uppercase;}
+#cs p{font-size:9px;letter-spacing:4px;color:#ffffff33;text-transform:uppercase;}
+#cs.hidden{display:none;}
+
+/* ─── HUD ─── */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:100;}
+
+/* Aim reticle */
+#aim{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:36px;height:36px;transition:all .12s;}
+.aim-ring{position:absolute;inset:0;border-radius:50%;
+  border:1.5px solid rgba(0,229,255,.6);transition:all .12s;}
+.aim-dot{position:absolute;top:50%;left:50%;width:4px;height:4px;background:#00e5ff;
+  border-radius:50%;transform:translate(-50%,-50%);
+  box-shadow:0 0 6px #00e5ff;}
+.aim-line{position:absolute;background:rgba(0,229,255,.5);}
+.aim-t{top:0;left:50%;width:1px;height:8px;transform:translateX(-50%);}
+.aim-b{bottom:0;left:50%;width:1px;height:8px;transform:translateX(-50%);}
+.aim-l{left:0;top:50%;height:1px;width:8px;transform:translateY(-50%);}
+.aim-r{right:0;top:50%;height:1px;width:8px;transform:translateY(-50%);}
+#aim.grabbed .aim-ring{border-color:#ff6b35;transform:scale(.7);}
+#aim.grabbed .aim-dot{background:#ff6b35;box-shadow:0 0 8px #ff6b35;}
+#aim.grabbed .aim-line{background:rgba(255,107,53,.6);}
+#aim.scan-mode .aim-ring{border-color:#00ff88;border-width:2px;transform:scale(1.3);}
+#aim.scan-mode .aim-dot{background:#00ff88;box-shadow:0 0 10px #00ff88;}
+
+/* GrabHand status */
+#hand-hud{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);
+  display:flex;gap:14px;align-items:center;}
+.hand-slot{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.hand-icon{width:48px;height:48px;border:1.5px solid #ffffff22;border-radius:8px;
+  background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;
+  font-size:22px;position:relative;transition:all .2s;}
+.hand-icon.active{border-color:#00e5ff;box-shadow:0 0 12px #00e5ff44;}
+.hand-icon.grabbed{border-color:#ff6b35;box-shadow:0 0 12px #ff6b3544;}
+.hand-icon.recharging{border-color:#ffffff33;}
+.hand-label{font-size:7px;letter-spacing:2px;color:#ffffff44;text-transform:uppercase;}
+.hand-charge{position:absolute;bottom:0;left:0;right:0;height:2px;background:#00e5ff;
+  border-radius:0 0 6px 6px;transition:width .1s;}
+.hand-key{position:absolute;top:2px;right:4px;font-size:7px;color:#ffffff44;}
+
+/* Grab rope visual indicator */
+#rope-hud{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  font-size:8px;letter-spacing:3px;color:#00e5ff88;text-transform:uppercase;
+  display:none;}
+#rope-hud.visible{display:block;}
+
+/* Scanner panel */
+#scanner-panel{position:fixed;inset:0;z-index:600;background:rgba(0,20,40,.95);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+#scanner-panel.open{display:flex;}
+.scan-title{font-size:12px;letter-spacing:8px;color:#00e5ff;text-transform:uppercase;
+  text-shadow:0 0 20px #00e5ff;}
+.scan-frame{width:200px;height:200px;border:2px solid #00e5ff44;position:relative;
+  display:flex;align-items:center;justify-content:center;}
+.scan-corner{position:absolute;width:20px;height:20px;border-color:#00e5ff;border-style:solid;}
+.sc-tl{top:0;left:0;border-width:2px 0 0 2px;}
+.sc-tr{top:0;right:0;border-width:2px 2px 0 0;}
+.sc-bl{bottom:0;left:0;border-width:0 0 2px 2px;}
+.sc-br{bottom:0;right:0;border-width:0 2px 2px 0;}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#00e5ff,transparent);
+  animation:scanline 2s ease-in-out infinite;}
+@keyframes scanline{0%{top:0;opacity:1;}100%{top:100%;opacity:.3;}}
+.scan-hand-emoji{font-size:80px;animation:handpulse 1s ease-in-out infinite;}
+@keyframes handpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+.scan-status{font-size:9px;letter-spacing:4px;color:#00e5ff88;text-transform:uppercase;}
+.scan-result{font-size:13px;letter-spacing:5px;text-transform:uppercase;display:none;}
+.scan-result.success{color:#00ff88;display:block;}
+.scan-result.fail{color:#ff3366;display:block;}
+.scan-close{background:none;border:1px solid #00e5ff44;color:#00e5ff88;padding:8px 24px;
+  font-size:8px;letter-spacing:4px;text-transform:uppercase;cursor:pointer;font-family:inherit;
+  transition:all .3s;margin-top:8px;}
+.scan-close:hover,.scan-close:active{border-color:#00e5ff;color:#00e5ff;}
+
+/* Status messages */
+#status{position:absolute;top:20%;left:50%;transform:translateX(-50%);
+  font-size:10px;letter-spacing:4px;color:#00e5ff;text-transform:uppercase;
+  opacity:0;pointer-events:none;transition:opacity .3s;text-shadow:0 0 10px #00e5ff;
+  text-align:center;}
+
+/* HP & Stamina */
+#vitals{position:absolute;bottom:20px;left:20px;}
+.vital-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.vital-lbl{font-size:7px;letter-spacing:3px;color:#ffffff44;text-transform:uppercase;width:20px;}
+.vital-bar{width:120px;height:2px;background:#ffffff11;border-radius:1px;}
+.vital-fill{height:100%;border-radius:1px;transition:width .3s;}
+.vf-hp{background:linear-gradient(90deg,#ff3366,#ff6b35);}
+.vf-st{background:linear-gradient(90deg,#00e5ff,#7c4dff);}
+.vital-val{font-size:9px;color:#ffffffcc;min-width:28px;}
+
+/* FPS */
+#fps-h{position:absolute;top:12px;left:12px;font-size:8px;color:#ffffff22;letter-spacing:2px;}
+.fv{color:#00ff88;}
+
+/* Kill/action feed */
+#afeed{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:3px;}
+.aentry{font-size:9px;color:#00e5ff;letter-spacing:2px;background:rgba(0,229,255,.06);
+  padding:3px 10px;border-left:2px solid #00e5ff44;transition:opacity 1s;}
+.aentry.fade{opacity:0;}
+
+/* Settings btn */
+#set-btn{position:fixed;top:10px;left:50%;transform:translateX(-50%);
+  font-size:8px;letter-spacing:3px;color:#00e5ff66;text-transform:uppercase;
+  padding:6px 14px;border:1px solid #00e5ff33;background:rgba(0,10,20,.8);
+  pointer-events:all;cursor:pointer;z-index:8000;font-family:inherit;}
+#set-btn:hover,#set-btn:active{border-color:#00e5ff;color:#00e5ff;}
+
+/* ─── SETTINGS ─── */
+#settings{position:fixed;inset:0;z-index:500;background:rgba(0,10,25,.95);
+  display:none;align-items:center;justify-content:center;}
+#settings.open{display:flex;}
+.set-box{width:min(480px,92vw);max-height:88vh;background:#050f1f;border:1px solid #00e5ff22;
+  display:flex;flex-direction:column;overflow:hidden;}
+.set-head{background:#081828;padding:12px 18px;display:flex;align-items:center;
+  justify-content:space-between;border-bottom:1px solid #00e5ff11;flex-shrink:0;}
+.set-title{font-size:10px;letter-spacing:6px;color:#00e5ff;text-transform:uppercase;}
+.set-close{background:none;border:1px solid #00e5ff33;color:#00e5ff66;width:26px;height:26px;
+  font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;}
+.set-close:hover{border-color:#00e5ff;color:#00e5ff;}
+.set-body{padding:14px 18px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;}
+.set-section{font-size:7px;letter-spacing:4px;color:#00e5ff44;text-transform:uppercase;
+  margin:12px 0 8px;border-bottom:1px solid #00e5ff11;padding-bottom:5px;}
+.set-section:first-of-type{margin-top:0;}
+.set-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:14px;}
+.set-lbl{font-size:9px;letter-spacing:2px;color:#ffffff55;text-transform:uppercase;flex-shrink:0;}
+.set-val{font-size:9px;color:#00e5ff;min-width:30px;text-align:right;flex-shrink:0;}
+.set-slider{flex:1;-webkit-appearance:none;appearance:none;height:1px;background:#00e5ff22;
+  outline:none;border:none;cursor:pointer;touch-action:pan-x;}
+.set-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+  border-radius:50%;background:#00e5ff;cursor:pointer;box-shadow:0 0 8px #00e5ff66;}
+.set-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#00e5ff;cursor:pointer;border:none;}
+.set-toggle{position:relative;width:36px;height:18px;flex-shrink:0;}
+.set-toggle input{opacity:0;width:0;height:0;}
+.tog-tr{position:absolute;inset:0;background:#ffffff11;border-radius:18px;cursor:pointer;transition:.3s;}
+.tog-tr::before{content:'';position:absolute;width:12px;height:12px;left:3px;bottom:3px;
+  background:#444;border-radius:50%;transition:.3s;}
+input:checked+.tog-tr{background:#00e5ff44;}
+input:checked+.tog-tr::before{transform:translateX(18px);background:#00e5ff;}
+.set-footer{padding:10px 18px;border-top:1px solid #00e5ff11;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;}
+.set-apply{background:#00e5ff22;border:1px solid #00e5ff55;color:#00e5ff;padding:8px 18px;
+  font-size:8px;letter-spacing:3px;text-transform:uppercase;cursor:pointer;font-family:inherit;}
+.set-apply:active{background:#00e5ff44;}
+.set-reset{background:none;border:1px solid #ffffff11;color:#ffffff33;padding:8px 12px;
+  font-size:8px;letter-spacing:3px;text-transform:uppercase;cursor:pointer;font-family:inherit;}
+@media(max-height:500px) and (orientation:landscape){
+  .set-body{display:grid;grid-template-columns:1fr 1fr;column-gap:18px;align-content:start;}
+  .set-section{grid-column:1/-1;}
+}
+
+/* ─── OVERLAYS ─── */
+#dov{position:fixed;inset:0;pointer-events:none;z-index:150;}
+
+/* ─── MOBILE CONTROLS ─── */
+#mc{display:none;position:fixed;inset:0;pointer-events:none;z-index:110;}
+
+/* Joystick */
+#jz{position:absolute;bottom:14px;left:14px;width:110px;height:110px;pointer-events:all;}
+#jbase{position:absolute;inset:0;background:rgba(0,229,255,.04);
+  border:1.5px solid rgba(0,229,255,.12);border-radius:50%;}
+#jknob{position:absolute;top:50%;left:50%;width:40px;height:40px;
+  background:rgba(0,229,255,.35);border:2px solid rgba(0,229,255,.7);border-radius:50%;
+  transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(0,229,255,.2);}
+#lz{position:absolute;top:50px;right:0;width:55%;height:calc(100% - 50px);pointer-events:all;}
+
+/* GRAB L button — big left-center */
+#b-grabl{position:absolute;bottom:140px;left:136px;width:64px;height:64px;
+  background:rgba(0,229,255,.2);border:2px solid rgba(0,229,255,.6);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;
+  box-shadow:0 0 15px rgba(0,229,255,.2);}
+#b-grabl:active{background:rgba(0,229,255,.5);transform:scale(.92);}
+
+/* GRAB R button — big right */
+#b-grabr{position:absolute;bottom:14px;right:14px;width:72px;height:72px;
+  background:rgba(255,107,53,.2);border:2px solid rgba(255,107,53,.7);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;
+  box-shadow:0 0 18px rgba(255,107,53,.2);}
+#b-grabr:active{background:rgba(255,107,53,.5);transform:scale(.92);}
+
+/* RELEASE button */
+#b-release{position:absolute;bottom:100px;right:98px;width:54px;height:54px;
+  background:rgba(255,50,50,.15);border:1.5px solid rgba(255,50,50,.5);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;}
+#b-release:active{background:rgba(255,50,50,.4);}
+
+/* Jump */
+#b-jump{position:absolute;bottom:98px;right:160px;width:52px;height:52px;
+  background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.5);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;}
+#b-jump:active{background:rgba(0,229,255,.4);transform:scale(.92);}
+
+/* Scan */
+#b-scan{position:absolute;bottom:98px;right:14px;width:52px;height:52px;
+  background:rgba(0,255,136,.15);border:1.5px solid rgba(0,255,136,.5);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;}
+#b-scan:active{background:rgba(0,255,136,.4);}
+
+/* Sprint / Crouch */
+#b-sprint{position:absolute;bottom:88px;left:14px;width:48px;height:48px;
+  background:rgba(124,77,255,.15);border:1.5px solid rgba(124,77,255,.4);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;}
+#b-sprint.pressed{background:rgba(124,77,255,.4);border-color:#7c4dff;}
+#b-crouch{position:absolute;bottom:88px;left:72px;width:48px;height:48px;
+  background:rgba(255,200,0,.13);border:1.5px solid rgba(255,200,0,.35);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  pointer-events:all;user-select:none;-webkit-user-select:none;}
+#b-crouch.pressed{background:rgba(255,200,0,.4);border-color:#ffc800;}
+
+/* Settings mobile */
+#b-set-m{position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  padding:6px 14px;background:rgba(0,10,30,.85);border:1px solid #00e5ff22;
+  font-size:8px;letter-spacing:3px;color:#00e5ff55;text-transform:uppercase;
+  pointer-events:all;user-select:none;-webkit-user-select:none;z-index:130;}
+#b-set-m:active{border-color:#00e5ff;color:#00e5ff;}
+
+.ml{position:absolute;bottom:-13px;left:50%;transform:translateX(-50%);
+  font-size:6px;letter-spacing:1px;color:rgba(255,255,255,.25);
+  text-transform:uppercase;white-space:nowrap;pointer-events:none;}
+
+body.mob #set-btn{display:none;}
+body.mob #vitals{bottom:6px;}
+body:not(.mob) #b-set-m{display:none;}
+
+/* Power line visual */
+.powerline-glow{filter:drop-shadow(0 0 4px #ffdd00);}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="ls">
+  <div class="ll">GrabPack</div>
+  <div class="ls2">Chapter 1 · Factory</div>
+  <div class="lbw"><div class="lb" id="lbar"></div></div>
+  <div class="lt" id="ltxt">Loading... <span class="lp" id="lpct">0%</span></div>
+  <button class="skp" onclick="skipLoad()">[ Skip ]</button>
+</div>
+
+<!-- CLICK TO START -->
+<div id="cs"><h2>GrabPack</h2><p>Click / Tap to play</p></div>
+
+<!-- SCANNER PANEL -->
+<div id="scanner-panel">
+  <div class="scan-title">Hand Scanner</div>
+  <div class="scan-frame">
+    <div class="scan-corner sc-tl"></div>
+    <div class="scan-corner sc-tr"></div>
+    <div class="scan-corner sc-bl"></div>
+    <div class="scan-corner sc-br"></div>
+    <div class="scan-line"></div>
+    <div class="scan-hand-emoji" id="scan-hand">🖐️</div>
+  </div>
+  <div class="scan-status" id="scan-status">Place hand on scanner...</div>
+  <div class="scan-result" id="scan-result"></div>
+  <button class="scan-close" onclick="closeScanner()">[ Close ]</button>
+</div>
+
+<!-- OVERLAYS -->
+<canvas id="dov"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <!-- Aim reticle -->
+  <div id="aim">
+    <div class="aim-ring"></div>
+    <div class="aim-dot"></div>
+    <div class="aim-line aim-t"></div>
+    <div class="aim-line aim-b"></div>
+    <div class="aim-line aim-l"></div>
+    <div class="aim-line aim-r"></div>
+  </div>
+
+  <!-- Rope status -->
+  <div id="rope-hud">● ROPE ATTACHED</div>
+
+  <!-- GrabHand slots -->
+  <div id="hand-hud">
+    <div class="hand-slot">
+      <div class="hand-icon" id="hi-left">
+        <span class="hand-key">Q</span>🫲
+        <div class="hand-charge" id="hc-left" style="width:100%"></div>
+      </div>
+      <div class="hand-label">Left</div>
+    </div>
+    <div class="hand-slot" style="font-size:18px;color:#ffffff22;">|</div>
+    <div class="hand-slot">
+      <div class="hand-icon active" id="hi-right">
+        <span class="hand-key">E</span>🫱
+        <div class="hand-charge" id="hc-right" style="width:100%;background:#ff6b35"></div>
+      </div>
+      <div class="hand-label">Right</div>
+    </div>
+  </div>
+
+  <!-- Vitals -->
+  <div id="vitals">
+    <div class="vital-row">
+      <div class="vital-lbl">HP</div>
+      <div class="vital-bar"><div class="vital-fill vf-hp" id="vf-hp" style="width:100%"></div></div>
+      <div class="vital-val" id="vv-hp">100</div>
+    </div>
+    <div class="vital-row">
+      <div class="vital-lbl">ST</div>
+      <div class="vital-bar"><div class="vital-fill vf-st" id="vf-st" style="width:100%"></div></div>
+      <div class="vital-val" id="vv-st">100</div>
+    </div>
+  </div>
+
+  <!-- Status text -->
+  <div id="status"></div>
+
+  <!-- Feed -->
+  <div id="afeed"></div>
+
+  <!-- FPS -->
+  <div id="fps-h">FPS <span class="fv" id="fpsv">60</span></div>
+
+  <!-- PC Controls hint -->
+  <div id="ctrl-h" style="position:absolute;top:50%;right:12px;transform:translateY(-50%);
+    font-size:7px;color:#ffffff1a;letter-spacing:2px;line-height:2.2;text-transform:uppercase;">
+    <div>WASD Move</div>
+    <div>SHIFT Sprint</div>
+    <div>CTRL Crouch</div>
+    <div>SPACE Jump</div>
+    <div>E Grab / Shoot</div>
+    <div>Q Grab Left</div>
+    <div>F Throw / Release</div>
+    <div>R Scan Hand</div>
+    <div>P Settings</div>
+  </div>
+</div>
+
+<button id="set-btn">⚙ Settings</button>
+
+<!-- SETTINGS -->
+<div id="settings">
+  <div class="set-box">
+    <div class="set-head">
+      <span class="set-title">⚙ Settings</span>
+      <button class="set-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="set-body">
+      <div class="set-section">Camera</div>
+      <div class="set-row"><span class="set-lbl">Sensitivity</span>
+        <input type="range" class="set-slider" id="s-sens" min=".3" max="3" step=".05" value="1">
+        <span class="set-val" id="v-sens">1.0x</span></div>
+      <div class="set-row"><span class="set-lbl">FOV</span>
+        <input type="range" class="set-slider" id="s-fov" min="50" max="110" step="1" value="75">
+        <span class="set-val" id="v-fov">75°</span></div>
+      <div class="set-row"><span class="set-lbl">Invert Y</span>
+        <label class="set-toggle"><input type="checkbox" id="s-invy"><span class="tog-tr"></span></label></div>
+      <div class="set-section">Graphics</div>
+      <div class="set-row"><span class="set-lbl">Quality</span>
+        <input type="range" class="set-slider" id="s-qual" min="0" max="2" step="1" value="2">
+        <span class="set-val" id="v-qual">High</span></div>
+      <div class="set-row"><span class="set-lbl">Auto Optimizer</span>
+        <label class="set-toggle"><input type="checkbox" id="s-auto" checked><span class="tog-tr"></span></label></div>
+      <div class="set-section">GrabPack</div>
+      <div class="set-row"><span class="set-lbl">Grab Range</span>
+        <input type="range" class="set-slider" id="s-range" min="5" max="25" step="1" value="15">
+        <span class="set-val" id="v-range">15m</span></div>
+      <div class="set-row"><span class="set-lbl">Swing Strength</span>
+        <input type="range" class="set-slider" id="s-swing" min=".5" max="2" step=".1" value="1">
+        <span class="set-val" id="v-swing">1.0x</span></div>
+      <div class="set-row"><span class="set-lbl">Sound</span>
+        <label class="set-toggle"><input type="checkbox" id="s-snd" checked><span class="tog-tr"></span></label></div>
+    </div>
+    <div class="set-footer">
+      <button class="set-reset" onclick="resetSettings()">Reset</button>
+      <button class="set-apply" onclick="applySettings()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE CONTROLS -->
+<div id="mc">
+  <div id="jz"><div id="jbase"></div><div id="jknob"></div></div>
+  <div id="lz"></div>
+
+  <!-- Grab buttons -->
+  <div id="b-grabl">🫲<span class="ml">Grab L</span></div>
+  <div id="b-grabr">🫱<span class="ml">Grab R</span></div>
+  <div id="b-release">✊<span class="ml">Release</span></div>
+  <div id="b-jump">🦘<span class="ml">Jump</span></div>
+  <div id="b-scan">🖐️<span class="ml">Scan</span></div>
+  <div id="b-sprint">⚡<span class="ml">Sprint</span></div>
+  <div id="b-crouch">🦆<span class="ml">Crouch</span></div>
+  <div id="b-set-m">⚙ Settings</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════
+//  LOADING
+// ════════════════════════════════════════════════
+let loadSkip=false;
+function skipLoad(){loadSkip=true;finishLoad();}
+function finishLoad(){const l=document.getElementById('ls');l.classList.add('gone');setTimeout(()=>l.remove(),1000);}
+const LSQ=[[20,'Factory'],[45,'Machinery'],[65,'Power Lines'],[82,'Scanners'],[100,'Ready']];
+let lp=0,li=0;
+const LT=setInterval(()=>{
+  if(loadSkip){clearInterval(LT);return;}
+  if(lp<LSQ[li][0])lp=Math.min(lp+Math.random()*2+.5,LSQ[li][0]);
+  else{li++;if(li>=LSQ.length){clearInterval(LT);setTimeout(finishLoad,400);return;}}
+  document.getElementById('lbar').style.width=lp+'%';
+  document.getElementById('lpct').textContent=Math.floor(lp)+'%';
+  document.getElementById('ltxt').innerHTML=`Loading ${LSQ[Math.min(li,LSQ.length-1)][1]}... <span class="lp">${Math.floor(lp)}%</span>`;
+},80);
+
+// ════════════════════════════════════════════════
+//  SETTINGS
+// ════════════════════════════════════════════════
+const CFG={sens:1,fov:75,invertY:false,quality:2,autoOpt:true,grabRange:15,swingStrength:1,sound:true};
+const DEFS={...CFG};
+
+function openSettings(){
+  document.getElementById('s-sens').value=CFG.sens;document.getElementById('v-sens').textContent=CFG.sens.toFixed(1)+'x';
+  document.getElementById('s-fov').value=CFG.fov;document.getElementById('v-fov').textContent=CFG.fov+'°';
+  document.getElementById('s-invy').checked=CFG.invertY;
+  document.getElementById('s-qual').value=CFG.quality;document.getElementById('v-qual').textContent=['Low','Med','High'][CFG.quality];
+  document.getElementById('s-auto').checked=CFG.autoOpt;
+  document.getElementById('s-range').value=CFG.grabRange;document.getElementById('v-range').textContent=CFG.grabRange+'m';
+  document.getElementById('s-swing').value=CFG.swingStrength;document.getElementById('v-swing').textContent=CFG.swingStrength.toFixed(1)+'x';
+  document.getElementById('s-snd').checked=CFG.sound;
+  document.getElementById('settings').classList.add('open');
+}
+function closeSettings(){document.getElementById('settings').classList.remove('open');if(IS_MOBILE)locked=true;}
+function applySettings(){
+  CFG.sens=parseFloat(document.getElementById('s-sens').value);
+  CFG.fov=parseInt(document.getElementById('s-fov').value);
+  CFG.invertY=document.getElementById('s-invy').checked;
+  CFG.quality=parseInt(document.getElementById('s-qual').value);
+  CFG.autoOpt=document.getElementById('s-auto').checked;
+  CFG.grabRange=parseInt(document.getElementById('s-range').value);
+  CFG.swingStrength=parseFloat(document.getElementById('s-swing').value);
+  CFG.sound=document.getElementById('s-snd').checked;
+  applyQuality(CFG.quality);closeSettings();
+}
+function resetSettings(){Object.assign(CFG,DEFS);applySettings();openSettings();}
+
+['s-sens','s-fov','s-qual','s-range','s-swing'].forEach(id=>{
+  const vm={'s-sens':'v-sens','s-fov':'v-fov','s-qual':'v-qual','s-range':'v-range','s-swing':'v-swing'};
+  document.getElementById(id).addEventListener('input',function(){
+    const v=parseFloat(this.value),el=document.getElementById(vm[id]);
+    if(!el)return;
+    if(id==='s-fov')el.textContent=Math.round(v)+'°';
+    else if(id==='s-qual')el.textContent=['Low','Med','High'][Math.round(v)];
+    else if(id==='s-range')el.textContent=v+'m';
+    else el.textContent=v.toFixed(1)+'x';
+  });
+});
+
+['set-btn','b-set-m'].forEach(id=>{
+  const el=document.getElementById(id);if(!el)return;
+  el.addEventListener('click',e=>{e.stopPropagation();openSettings();});
+  el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();openSettings();});
+  el.addEventListener('touchstart',e=>e.stopPropagation(),{passive:false});
+});
+
+// ════════════════════════════════════════════════
+//  SOUND (Web Audio)
+// ════════════════════════════════════════════════
+let audioCtx=null,masterGain=null;
+function initAudio(){
+  if(audioCtx)return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  masterGain=audioCtx.createGain();masterGain.gain.value=.5;masterGain.connect(audioCtx.destination);
+}
+function playSound(type){
+  if(!CFG.sound)return;
+  try{
+    initAudio();
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.connect(g);g.connect(masterGain);const t=audioCtx.currentTime;
+    if(type==='grab'){
+      o.type='sine';o.frequency.setValueAtTime(600,t);o.frequency.exponentialRampToValueAtTime(200,t+.15);
+      g.gain.setValueAtTime(.3,t);g.gain.exponentialRampToValueAtTime(.001,t+.18);
+      o.start(t);o.stop(t+.18);
+    }else if(type==='pull'){
+      o.type='sawtooth';o.frequency.setValueAtTime(150,t);o.frequency.linearRampToValueAtTime(300,t+.1);
+      g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);
+      o.start(t);o.stop(t+.15);
+    }else if(type==='swing'){
+      o.type='sine';o.frequency.setValueAtTime(200,t);o.frequency.setValueAtTime(400,t+.2);
+      g.gain.setValueAtTime(.2,t);g.gain.exponentialRampToValueAtTime(.001,t+.4);
+      o.start(t);o.stop(t+.4);
+    }else if(type==='release'){
+      o.type='sine';o.frequency.setValueAtTime(400,t);o.frequency.exponentialRampToValueAtTime(100,t+.1);
+      g.gain.setValueAtTime(.2,t);g.gain.exponentialRampToValueAtTime(.001,t+.12);
+      o.start(t);o.stop(t+.12);
+    }else if(type==='scan_ok'){
+      [440,550,660].forEach((f,i)=>{
+        const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();
+        o2.connect(g2);g2.connect(masterGain);
+        o2.type='sine';o2.frequency.value=f;
+        g2.gain.setValueAtTime(.25,t+i*.08);g2.gain.exponentialRampToValueAtTime(.001,t+i*.08+.12);
+        o2.start(t+i*.08);o2.stop(t+i*.08+.12);
+      });return;
+    }else if(type==='scan_fail'){
+      o.type='sawtooth';o.frequency.setValueAtTime(200,t);o.frequency.setValueAtTime(150,t+.15);
+      g.gain.setValueAtTime(.3,t);g.gain.exponentialRampToValueAtTime(.001,t+.3);
+      o.start(t);o.stop(t+.3);
+    }else if(type==='footstep'){
+      o.type='sine';o.frequency.setValueAtTime(80,t);
+      g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.06);
+      o.start(t);o.stop(t+.06);
+    }else if(type==='electric'){
+      o.type='sawtooth';o.frequency.setValueAtTime(60+Math.random()*40,t);
+      g.gain.setValueAtTime(.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.08);
+      o.start(t);o.stop(t+.08);
+    }
+  }catch(e){}
+}
+
+// ════════════════════════════════════════════════
+//  MOBILE DETECT
+// ════════════════════════════════════════════════
+const IS_MOBILE=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)||('ontouchstart' in window)||(navigator.maxTouchPoints>1);
+if(IS_MOBILE){document.body.classList.add('mob');document.getElementById('mc').style.display='block';}
+
+// ════════════════════════════════════════════════
+//  THREE.JS
+// ════════════════════════════════════════════════
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x1a1a2e);
+scene.fog=new THREE.FogExp2(0x1a1a2e,.025);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,.05,200);
+
+// Lighting — factory/dark atmosphere
+scene.add(new THREE.AmbientLight(0x3344aa,.3));
+const mainLight=new THREE.DirectionalLight(0x8899ff,.6);
+mainLight.position.set(10,20,10);mainLight.castShadow=true;
+mainLight.shadow.mapSize.set(1024,1024);
+Object.assign(mainLight.shadow.camera,{left:-50,right:50,top:50,bottom:-50,near:1,far:100});
+scene.add(mainLight);
+// Accent lights
+const redLight=new THREE.PointLight(0xff3333,.8,20);redLight.position.set(-5,3,-10);scene.add(redLight);
+const blueLight=new THREE.PointLight(0x3388ff,.6,25);blueLight.position.set(10,2,5);scene.add(blueLight);
+const greenLight=new THREE.PointLight(0x00ff88,.4,15);greenLight.position.set(0,1,15);scene.add(greenLight);
+
+function applyQuality(lvl){
+  renderer.setPixelRatio([.5,1,Math.min(devicePixelRatio,2)][lvl]);
+  const sm=[256,512,1024][lvl];
+  mainLight.shadow.mapSize.set(sm,sm);
+  if(mainLight.shadow.map){mainLight.shadow.map.dispose();mainLight.shadow.map=null;}
+  renderer.shadowMap.enabled=lvl>0;
+  document.getElementById('fpsv').style.color=['#ff6b35','#ffaa00','#00ff88'][lvl];
+}
+
+// ════════════════════════════════════════════════
+//  WORLD — Poppy Playtime Chapter 1 Factory
+// ════════════════════════════════════════════════
+function mat(c,r=.8,m=0,e=null){
+  return new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m,...(e?{emissive:e,emissiveIntensity:.3}:{}),});
+}
+const colliders=[];
+function addBox(x,y,z,w,h,d,col,rx=0,rz=0,opts={}){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),col instanceof THREE.Material?col:mat(col));
+  mesh.position.set(x,y+h/2,z);mesh.rotation.x=rx;mesh.rotation.z=rz;
+  mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+  if(!opts.noCollide)colliders.push({cx:x,cz:z,hw:w/2,hd:d/2,h:y+h,baseY:y,mesh});
+  return mesh;
+}
+
+// Floor
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(80,80),mat(0x1a1a1a,.95));
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+// Floor tiles pattern
+for(let i=-8;i<8;i++)for(let j=-8;j<8;j++){
+  if((i+j)%2===0){const t=new THREE.Mesh(new THREE.PlaneGeometry(4.9,4.9),mat(0x222233,.9));
+  t.rotation.x=-Math.PI/2;t.position.set(i*5+2.5,.01,j*5+2.5);scene.add(t);}
+}
+
+// Ceiling
+const ceil=new THREE.Mesh(new THREE.PlaneGeometry(80,80),mat(0x111122,.9));
+ceil.rotation.x=Math.PI/2;ceil.position.y=12;scene.add(ceil);
+
+// Walls
+addBox(0,0,-35,80,12,1,0x151525);
+addBox(0,0,35,80,12,1,0x151525);
+addBox(-35,0,0,1,12,70,0x151525);
+addBox(35,0,0,1,12,70,0x151525);
+
+// Factory machinery — conveyor belt area
+addBox(-15,0,-20,8,1.5,20,0x2a2a3a);
+addBox(-15,1.5,-20,8,.2,20,mat(0x333344,.7,.5)); // belt surface
+// Conveyor rollers
+for(let i=-28;i<-10;i+=3){
+  const r=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,8,8),mat(0x4a4a5a,.5,.8));
+  r.rotation.z=Math.PI/2;r.position.set(-15,1.5,i);scene.add(r);
+}
+
+// Large factory machinery blocks
+addBox(-25,0,-15,5,6,5,mat(0x2a3a2a,.8,.3));
+addBox(-25,0,-5,5,8,5,mat(0x2a2a4a,.8,.4));
+addBox(20,0,-20,6,10,4,mat(0x3a2a2a,.8,.3));
+addBox(22,0,-5,4,5,8,mat(0x2a3a3a,.8,.3));
+
+// Platforms / walkways
+addBox(0,4,-10,10,0.4,3,mat(0x3a3a4a,.6,.6));
+addBox(10,6,0,3,0.4,12,mat(0x3a3a4a,.6,.6));
+addBox(-8,5,8,12,0.4,3,mat(0x3a3a4a,.6,.6));
+addBox(0,8,-20,14,0.4,3,mat(0x3a3a4a,.6,.6));
+addBox(15,3,15,4,0.4,10,mat(0x3a3a4a,.6,.6));
+addBox(-20,7,-25,8,0.4,4,mat(0x3a3a4a,.6,.6));
+
+// Stairs/steps
+for(let s=0;s<5;s++) addBox(5+s*.8,s*.8,-15,.8,.8,3,mat(0x2a2a3a,.8,.2));
+
+// Crates
+[[8,0,10],[6,0,10],[-5,0,5],[-5,0,7],[12,0,-8],[14,0,-8],[12,1,-8]].forEach(([x,y,z])=>{
+  addBox(x,y,z,2,2,2,mat(0x5a3a1a,.9,.1));
+});
+
+// Pipes
+for(let p=0;p<6;p++){
+  const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,12,8),mat(0x4a5a6a,.5,.7));
+  pipe.position.set(-30+p*12,6,-35);scene.add(pipe);
+  const pipe2=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,6,8),mat(0x3a4a5a,.5,.7));
+  pipe2.rotation.z=Math.PI/2;pipe2.position.set(-30+p*12,10,-32);scene.add(pipe2);
+}
+
+// ── POWER LINES / ELECTRIC POLES ──────────────
+const polePositions=[
+  [0,0,-25],[8,0,-25],[-8,0,-25],
+  [0,0,5],[12,4,0],[-12,4,0],
+  [0,8,-20],[10,6,0]
+];
+const poles=[];
+const poleMat=mat(0x5a5a6a,.4,.8);
+const wireMat=new THREE.LineBasicMaterial({color:0xffdd44});
+const wireGlowMat=mat(0xffdd44,.3,.8,0xffdd44);
+
+polePositions.forEach(([px,py,pz],i)=>{
+  // Pole vertical
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,4,6),poleMat);
+  pole.position.set(px,py+2,pz);scene.add(pole);
+  // Cross arm
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(2,.1,.1),poleMat);
+  arm.position.set(px,py+3.8,pz);scene.add(arm);
+  // Insulators
+  [-0.8,0.8].forEach(dx=>{
+    const ins=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.2,6),mat(0x8833aa,.5,.1));
+    ins.position.set(px+dx,py+3.7,pz);scene.add(ins);
+  });
+  // Electric glow sphere at top
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(.15,8,8),wireGlowMat);
+  glow.position.set(px,py+4.1,pz);scene.add(glow);
+  // Point light at pole
+  const pl=new THREE.PointLight(0xffdd44,.8,8);
+  pl.position.set(px,py+4,pz);scene.add(pl);
+  poles.push({x:px,y:py+4,z:pz,light:pl,glowMesh:glow,t:Math.random()*Math.PI*2});
+  // Wire to next pole
+  if(i>0){
+    const prev=polePositions[i-1];
+    const pts=[new THREE.Vector3(prev[0],prev[1]+4,prev[2]),new THREE.Vector3(px,py+4,pz)];
+    // Sag in the middle
+    const mid=new THREE.Vector3((prev[0]+px)/2,(prev[1]+py)/2+3.6,(prev[2]+pz)/2);
+    const curve=new THREE.QuadraticBezierCurve3(pts[0],mid,pts[1]);
+    const wireGeo=new THREE.BufferGeometry().setFromPoints(curve.getPoints(12));
+    scene.add(new THREE.Line(wireGeo,wireMat));
+  }
+});
+
+// ── HAND SCANNER TERMINALS ─────────────────────
+const scannerPositions=[[-5,0,0],[15,0,-10],[-10,4,-10]];
+const scanners=[];
+const scanMat=mat(0x004466,.5,.8,0x00aaff);
+const scanActiveMat=mat(0x006633,.5,.8,0x00ff88);
+scannerPositions.forEach(([sx,sy,sz],i)=>{
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.2,.1,1.2),mat(0x2a3a4a,.5,.8));
+  base.position.set(sx,sy+.05,sz);scene.add(base);
+  const panel=new THREE.Mesh(new THREE.BoxGeometry(.8,1.5,.1),scanMat.clone());
+  panel.position.set(sx,sy+.85,sz);scene.add(panel);
+  // Screen
+  const screen=new THREE.Mesh(new THREE.BoxGeometry(.6,.9,.05),mat(0x002244,.3,.5,0x0044aa));
+  screen.position.set(sx,sy+.9,sz-.06);scene.add(screen);
+  // Hand symbol
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(.5,.7,.02),mat(0x003355,.5,.5,0x0088cc));
+  frame.position.set(sx,sy+.9,sz-.09);scene.add(frame);
+  // Light
+  const sl=new THREE.PointLight(0x00aaff,.5,4);sl.position.set(sx,sy+1.5,sz);scene.add(sl);
+  colliders.push({cx:sx,cz:sz,hw:.6,hd:.6,h:sy+1.5,baseY:sy,isScanner:true,idx:i});
+  scanners.push({x:sx,y:sy,z:sz,panel,screen,light:sl,scanned:false,t:0});
+});
+
+// Grabbable objects (boxes that can be pulled)
+const grabbableObjs=[];
+const grabMat=mat(0x4455aa,.7,.3,0x2233aa);
+[[5,0,-5],[10,0,10],[-3,0,-8],[18,0,5],[0,4,-9]].forEach(([gx,gy,gz])=>{
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),grabMat.clone());
+  m.position.set(gx,gy+.5,gz);m.castShadow=true;scene.add(m);
+  grabbableObjs.push({mesh:m,vel:new THREE.Vector3(),grabbed:false,grabbedBy:null,basePos:new THREE.Vector3(gx,gy+.5,gz)});
+});
+
+// Grapple anchor points (ceiling hooks + poles)
+const anchorPoints=[];
+[[0,11,-10],[8,11,0],[-8,11,8],[0,11,-20],[12,6,-2],[-12,5,8],[10,4,-10]].forEach(([ax,ay,az])=>{
+  const hook=new THREE.Mesh(new THREE.SphereGeometry(.2,8,8),mat(0x8888aa,.3,.9,0x5555aa));
+  hook.position.set(ax,ay,az);scene.add(hook);
+  anchorPoints.push({x:ax,y:ay,z:az,mesh:hook});
+});
+polePositions.forEach(([px,py,pz])=>anchorPoints.push({x:px,y:py+4,z:pz}));
+
+// ── COLLISION ───────────────────────────────────
+const PR=.35,STEP=.4;
+function resolveCollision(pos,vel){
+  for(let it=0;it<3;it++){
+    for(const c of colliders){
+      if(c.isScanner)continue;
+      const dx=pos.x-c.cx,dz=pos.z-c.cz;
+      const ox=PR+c.hw-Math.abs(dx),oz=PR+c.hd-Math.abs(dz);
+      if(ox<=0||oz<=0)continue;
+      const pf=pos.y-PL.curH,bbot=c.baseY,btop=c.h;
+      if(pf>=btop||pos.y<=bbot)continue;
+      if(pf>=btop-STEP-.05&&pf<btop){pos.y=btop+PL.curH;if(vel)vel.y=0;PL.onGround=true;continue;}
+      if(ox<oz){pos.x+=ox*(dx<0?-1:1);if(vel)vel.x=0;}
+      else{pos.z+=oz*(dz<0?-1:1);if(vel)vel.z=0;}
+    }
+  }
+}
+
+// ════════════════════════════════════════════════
+//  PLAYER
+// ════════════════════════════════════════════════
+const PL={
+  pos:new THREE.Vector3(0,1.7,20),vel:new THREE.Vector3(),
+  yaw:0,pitch:0,H:1.7,CH:.9,curH:1.7,
+  onGround:false,sprinting:false,crouching:false,
+  stamina:100,hp:100,
+};
+let footT=0;
+
+// ── GRABPACK SYSTEM ──────────────────────────────
+const GRAB={
+  // Left hand (blue)
+  left:{
+    active:false,
+    ropeStart:new THREE.Vector3(),
+    ropeEnd:new THREE.Vector3(),
+    hitPoint:new THREE.Vector3(),
+    hitObj:null,           // what we hit
+    hitType:null,          // 'anchor' | 'object' | 'pole' | null
+    ropeLen:0,
+    charge:1,
+    color:0x00e5ff,
+  },
+  // Right hand (red/orange) — primary
+  right:{
+    active:false,
+    ropeStart:new THREE.Vector3(),
+    ropeEnd:new THREE.Vector3(),
+    hitPoint:new THREE.Vector3(),
+    hitObj:null,
+    hitType:null,
+    ropeLen:0,
+    charge:1,
+    color:0xff6b35,
+  }
+};
+
+// Rope meshes
+// ════════════════════════════════════════════════
+//  GRABPACK ARMS (viewmodel — lebih besar & visible)
+// ════════════════════════════════════════════════
+const armGroup=new THREE.Group();
+
+// LEFT ARM — biru, posisi kiri bawah layar
+const armLMat=new THREE.MeshStandardMaterial({color:0x0077cc,roughness:.3,metalness:.9,emissive:0x0044aa,emissiveIntensity:.4});
+const armLower=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.55),armLMat);
+armLower.position.set(-.18,-.18,-.35);armGroup.add(armLower);
+// Left glove/hand
+const gloveLMat=new THREE.MeshStandardMaterial({color:0x00e5ff,roughness:.2,metalness:.9,emissive:0x00e5ff,emissiveIntensity:.5});
+const gloveL=new THREE.Mesh(new THREE.BoxGeometry(.12,.1,.12),gloveLMat);
+gloveL.position.set(-.18,-.18,-.62);armGroup.add(gloveL);
+// Left finger tips
+for(let f=0;f<3;f++){
+  const ft=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.06),gloveLMat);
+  ft.position.set(-.12+f*.04,-.175,-.68);armGroup.add(ft);
+}
+// Left tube detail
+const tubeL=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.5,8),
+  new THREE.MeshStandardMaterial({color:0x003388,roughness:.4,metalness:.8,emissive:0x001166,emissiveIntensity:.3}));
+tubeL.rotation.x=Math.PI/2;tubeL.position.set(-.18,-.21,-.35);armGroup.add(tubeL);
+
+// RIGHT ARM — merah/orange, posisi kanan bawah layar
+const armRMat=new THREE.MeshStandardMaterial({color:0xcc2200,roughness:.3,metalness:.9,emissive:0x881100,emissiveIntensity:.4});
+const armRower=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.55),armRMat);
+armRower.position.set(.18,-.18,-.35);armGroup.add(armRower);
+// Right glove/hand
+const gloveRMat=new THREE.MeshStandardMaterial({color:0xff6b35,roughness:.2,metalness:.9,emissive:0xff6b35,emissiveIntensity:.5});
+const gloveR=new THREE.Mesh(new THREE.BoxGeometry(.12,.1,.12),gloveRMat);
+gloveR.position.set(.18,-.18,-.62);armGroup.add(gloveR);
+// Right finger tips
+for(let f=0;f<3;f++){
+  const ft=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.06),gloveRMat);
+  ft.position.set(.12+f*.04,-.175,-.68);armGroup.add(ft);
+}
+// Right tube detail
+const tubeR=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.5,8),
+  new THREE.MeshStandardMaterial({color:0x881100,roughness:.4,metalness:.8,emissive:0x440000,emissiveIntensity:.3}));
+tubeR.rotation.x=Math.PI/2;tubeR.position.set(.18,-.21,-.35);armGroup.add(tubeR);
+
+// Backpack body (center, small)
+const bpMat=new THREE.MeshStandardMaterial({color:0x222233,roughness:.6,metalness:.5});
+const bp=new THREE.Mesh(new THREE.BoxGeometry(.22,.16,.08),bpMat);
+bp.position.set(0,-.22,-.18);armGroup.add(bp);
+
+camera.add(armGroup);scene.add(camera);
+
+// Launch animation state
+const armAnim={
+  leftZ:0,rightZ:0,    // extra Z offset for launch
+  leftY:0,rightY:0,    // recoil Y
+};
+
+function triggerLaunchAnim(hand){
+  if(hand==='left'){armAnim.leftZ=-.15;armAnim.leftY=.03;}
+  else{armAnim.rightZ=-.15;armAnim.rightY=.03;}
+}
+
+// ════════════════════════════════════════════════
+//  ROPE SYSTEM — menggunakan THREE.Line agar
+//  koordinat dunia langsung visible dari kamera
+// ════════════════════════════════════════════════
+function makeRopeLine(color){
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+  const mat2=new THREE.LineBasicMaterial({color,linewidth:2});
+  const line=new THREE.Line(geo,mat2);
+  line.visible=false;
+  line.frustumCulled=false; // always render
+  scene.add(line);
+  return line;
+}
+const ropeLineL=makeRopeLine(0x00e5ff);
+const ropeLineR=makeRopeLine(0xff6b35);
+
+// Thick rope tube (lebih keliatan)
+function makeRopeTube(color){
+  const geo=new THREE.CylinderGeometry(.018,.018,1,6);
+  const mat2=new THREE.MeshStandardMaterial({color,roughness:.2,metalness:.8,
+    emissive:color,emissiveIntensity:.6});
+  const m=new THREE.Mesh(geo,mat2);
+  m.visible=false;m.frustumCulled=false;scene.add(m);return m;
+}
+const ropeL=makeRopeTube(0x00e5ff);
+const ropeR=makeRopeTube(0xff6b35);
+
+// Projectile hand (yang "diluncurkan" keluar)
+function makeProjectileHand(color){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.1,.08,.1),
+    new THREE.MeshStandardMaterial({color,roughness:.2,metalness:.9,emissive:color,emissiveIntensity:.8}));
+  g.add(body);
+  for(let f=0;f<3;f++){
+    const ft=new THREE.Mesh(new THREE.BoxGeometry(.025,.025,.05),
+      new THREE.MeshStandardMaterial({color,roughness:.2,metalness:.9,emissive:color,emissiveIntensity:.9}));
+    ft.position.set(-.025+f*.025,0,.075);g.add(ft);
+  }
+  g.visible=false;g.frustumCulled=false;scene.add(g);return g;
+}
+const projHandL=makeProjectileHand(0x00e5ff);
+const projHandR=makeProjectileHand(0xff6b35);
+
+// Projectile state — Poppy Playtime style
+const proj={
+  left:{
+    active:false,
+    returning:false,       // lagi balik ke player
+    attached:false,        // udah nempel ke sesuatu
+    pos:new THREE.Vector3(),
+    vel:new THREE.Vector3(),
+    dir:new THREE.Vector3(), // arah tembak awal
+    distTraveled:0,        // total jarak yang udah ditempuh
+    hitObj:null,
+    hitType:null,
+  },
+  right:{
+    active:false,
+    returning:false,
+    attached:false,
+    pos:new THREE.Vector3(),
+    vel:new THREE.Vector3(),
+    dir:new THREE.Vector3(),
+    distTraveled:0,
+    hitObj:null,
+    hitType:null,
+  },
+};
+
+const HAND_SPEED=35;   // kecepatan tangan diluncurkan
+const MAX_RANGE=18;    // jarak maksimal sebelum balik
+const RETURN_SPEED=45; // kecepatan balik
+
+function launchHand(hand){
+  const p=proj[hand];
+  const h=GRAB[hand];
+  const ph=hand==='left'?projHandL:projHandR;
+
+  // Kalau lagi attached / returning → paksa release dulu
+  if(p.active){
+    returnHand(hand);
+    return;
+  }
+
+  // Arah tembak = arah kamera
+  const shootDir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+
+  // Start position = ujung tangan (world space)
+  const armOff=hand==='left'
+    ?new THREE.Vector3(-.18,-.18,-.62)
+    :new THREE.Vector3( .18,-.18,-.62);
+  const worldStart=armOff.clone().applyMatrix4(camera.matrixWorld);
+
+  p.pos.copy(worldStart);
+  p.vel.copy(shootDir).multiplyScalar(HAND_SPEED);
+  p.dir.copy(shootDir);
+  p.distTraveled=0;
+  p.active=true;
+  p.returning=false;
+  p.attached=false;
+  p.hitObj=null;
+  p.hitType=null;
+
+  ph.visible=true;
+  ph.position.copy(worldStart);
+
+  // Arm launch animation
+  triggerLaunchAnim(hand);
+  playSound('grab');
+
+  // Update GRAB state
+  h.active=false; // belum attached
+  h.charge=0;
+  updateHandHUD();
+}
+
+function returnHand(hand){
+  const p=proj[hand];
+  const h=GRAB[hand];
+  if(!p.active)return;
+  p.returning=true;
+  p.attached=false;
+  h.active=false;h.hitObj=null;h.hitType=null;
+  playSound('release');
+  updateAimState(null);
+  // Release grabbable object
+  if(p.hitType==='object'&&p.hitObj){p.hitObj.grabbed=false;p.hitObj.grabbedBy=null;}
+  updateHandHUD();
+  document.getElementById('rope-hud').classList.remove('visible');
+}
+
+function updateProjectiles(dt){
+  ['left','right'].forEach(hand=>{
+    const p=proj[hand];
+    const ph=hand==='left'?projHandL:projHandR;
+    const rope=hand==='left'?ropeL:ropeR;
+    const ropeLine=hand==='left'?ropeLineL:ropeLineR;
+    const h=GRAB[hand];
+
+    if(!p.active){
+      ph.visible=false;ropeLine.visible=false;rope.visible=false;
+      return;
+    }
+
+    // ── ARM TIP WORLD POSITION (rope start) ──
+    const armOff=hand==='left'
+      ?new THREE.Vector3(-.18,-.18,-.62)
+      :new THREE.Vector3( .18,-.18,-.62);
+    const ropeStart=armOff.clone().applyMatrix4(camera.matrixWorld);
+
+    if(p.returning){
+      // ── RETURNING: tangan balik ke arm tip ──
+      const toArm=ropeStart.clone().sub(p.pos);
+      const dist=toArm.length();
+      if(dist<0.3){
+        // Sampai! reset semua
+        p.active=false;p.returning=false;p.attached=false;
+        ph.visible=false;ropeLine.visible=false;rope.visible=false;
+        // Mulai recharge SETELAH tangan balik
+        GRAB[hand].charge=0;
+        return;
+      }
+      // Move toward arm tip
+      p.vel.copy(toArm.normalize().multiplyScalar(RETURN_SPEED));
+      p.pos.addScaledVector(p.vel,dt);
+      ph.position.copy(p.pos);
+      ph.rotation.x+=dt*12;
+
+    } else if(p.attached){
+      // ── ATTACHED: tangan nempel, update hitPoint ──
+      // Kalau object, ikutin posisi object
+      if(p.hitType==='object'&&p.hitObj){
+        p.pos.copy(p.hitObj.mesh.position);
+        h.hitPoint.copy(p.pos);
+      }
+      ph.position.copy(p.pos);
+      ph.rotation.x+=dt*2; // slow spin
+
+    } else {
+      // ── FLYING: tangan terbang maju ──
+      const step=p.vel.clone().multiplyScalar(dt);
+      p.distTraveled+=step.length();
+      p.pos.add(step);
+      ph.position.copy(p.pos);
+      ph.rotation.x+=dt*15;
+      ph.rotation.y+=dt*8;
+
+      // Cek max range → balik
+      if(p.distTraveled>=MAX_RANGE){
+        returnHand(hand);return;
+      }
+
+      // ── COLLISION CHECK saat flying ──
+      // 1. Anchor points
+      let hit=null;
+      anchorPoints.forEach(ap=>{
+        if(hit)return;
+        const d=p.pos.distanceTo(new THREE.Vector3(ap.x,ap.y,ap.z));
+        if(d<1.0)hit={type:'anchor',obj:ap,pos:new THREE.Vector3(ap.x,ap.y,ap.z)};
+      });
+      // 2. Power poles
+      if(!hit)poles.forEach(pole=>{
+        if(hit)return;
+        const d=p.pos.distanceTo(new THREE.Vector3(pole.x,pole.y,pole.z));
+        if(d<1.2)hit={type:'pole',obj:pole,pos:new THREE.Vector3(pole.x,pole.y,pole.z)};
+      });
+      // 3. Grabbable objects
+      if(!hit){
+        const ray2=new THREE.Raycaster(p.pos,p.vel.clone().normalize(),.0,1.5);
+        const gMeshes=grabbableObjs.filter(o=>!o.grabbed).map(o=>o.mesh);
+        const ghits=ray2.intersectObjects(gMeshes);
+        if(ghits.length){
+          const go=grabbableObjs.find(o=>o.mesh===ghits[0].object);
+          if(go)hit={type:'object',obj:go,pos:ghits[0].point.clone()};
+        }
+      }
+      // 4. Static world walls
+      if(!hit){
+        const ray3=new THREE.Raycaster(p.pos,p.vel.clone().normalize(),.0,1.2);
+        const wMeshes=colliders.filter(c=>!c.isScanner).map(c=>c.mesh).filter(Boolean);
+        const whits=ray3.intersectObjects(wMeshes);
+        if(whits.length)hit={type:'wall',obj:null,pos:whits[0].point.clone()};
+      }
+
+      if(hit){
+        // NEMPEL!
+        p.attached=true;
+        p.pos.copy(hit.pos);
+        p.hitType=hit.type;
+        p.hitObj=hit.obj;
+
+        // Update GRAB state
+        h.active=true;
+        h.hitPoint.copy(hit.pos);
+        h.hitType=hit.type;
+        h.hitObj=hit.obj;
+        h.ropeLen=camera.position.distanceTo(hit.pos);
+
+        if(hit.type==='object'&&hit.obj){
+          hit.obj.grabbed=true;hit.obj.grabbedBy=hand;
+          showStatus('📦 Object grabbed! Pull!');
+          playSound('pull');
+          addFeed(hand==='left'?'🫲 Object pulled':'🫱 Object pulled');
+        }else if(hit.type==='anchor'||hit.type==='pole'){
+          showStatus(hit.type==='pole'?'⚡ Power line! Swing!':'🪝 Anchor! Swing!');
+          playSound('grab');
+          addFeed(hand==='left'?'🫲 Grapple!':'🫱 Grapple!');
+          updateAimState('grabbed');
+        }else{
+          showStatus('Wall attached');
+          playSound('grab');
+        }
+        updateHandHUD();
+        document.getElementById('rope-hud').classList.add('visible');
+      }
+    }
+
+    // ── ROPE DRAW ──
+    const ropeEnd=p.pos.clone();
+    const dir=ropeEnd.clone().sub(ropeStart);
+    const len=dir.length();
+
+    // Line rope
+    const posArr=ropeLine.geometry.attributes.position.array;
+    posArr[0]=ropeStart.x;posArr[1]=ropeStart.y;posArr[2]=ropeStart.z;
+    posArr[3]=ropeEnd.x;posArr[4]=ropeEnd.y;posArr[5]=ropeEnd.z;
+    ropeLine.geometry.attributes.position.needsUpdate=true;
+    ropeLine.visible=true;
+
+    // Tube rope
+    if(len>.05){
+      rope.visible=true;
+      rope.scale.y=len;
+      rope.position.copy(ropeStart.clone().add(ropeEnd).multiplyScalar(.5));
+      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
+    }else rope.visible=false;
+  });
+}
+
+// ════════════════════════════════════════════════
+//  RAY & GRAB LOGIC
+// ════════════════════════════════════════════════
+const ray=new THREE.Raycaster();
+const _grabTarget=new THREE.Vector3();
+
+function doGrab(hand){
+  const p=proj[hand];
+  // Kalau lagi aktif (terbang/attached) → paksa return
+  if(p.active){returnHand(hand);return;}
+  // Kalau charge belum penuh → ga bisa tembak
+  if(GRAB[hand].charge<1){showStatus('Recharging...');return;}
+  // LANGSUNG tembakkan tangan — collision detection ada di updateProjectiles
+  launchHand(hand);
+}
+
+function doGrab(hand){ launchHand(hand); }
+function releaseGrab(hand){ returnHand(hand); }
+function releaseAll(){ returnHand('left'); returnHand('right'); }
+
+function releaseAll(){returnHand('left');returnHand('right');}
+
+function updateHandHUD(){
+  const hil=document.getElementById('hi-left');
+  const hir=document.getElementById('hi-right');
+  hil.className='hand-icon'+(GRAB.left.active?' grabbed':'');
+  hir.className='hand-icon'+(GRAB.right.active?' grabbed':' active');
+  document.getElementById('rope-hud').classList.toggle('visible',GRAB.left.active||GRAB.right.active);
+}
+
+function updateAimState(state){
+  const aim=document.getElementById('aim');
+  aim.className='';
+  if(state==='grabbed')aim.classList.add('grabbed');
+  else if(state==='scan')aim.classList.add('scan-mode');
+}
+
+// ── SWING PHYSICS ─────────────────────────────
+function applySwingForce(dt){
+  // For each active rope that's an anchor/pole: apply pendulum force
+  ['left','right'].forEach(hand=>{
+    const h=GRAB[hand];
+    if(!h.active||(h.hitType!=='anchor'&&h.hitType!=='pole'))return;
+
+    // Pendulum constraint: keep rope length constant
+    const anchor=h.hitPoint;
+    const toAnchor=anchor.clone().sub(PL.pos);
+    const dist=toAnchor.length();
+    const targetDist=h.ropeLen;
+
+    // If rope is taut, constrain velocity
+    if(dist>targetDist){
+      const toAnchorN=toAnchor.clone().normalize();
+      // Remove component of velocity going away from anchor
+      const vDot=PL.vel.dot(toAnchorN);
+      if(vDot<0) PL.vel.addScaledVector(toAnchorN,-vDot*.8);
+      // Pull player toward anchor
+      PL.vel.addScaledVector(toAnchorN,(dist-targetDist)*8*dt*CFG.swingStrength);
+    }
+
+    // Swing — add sideways force based on momentum
+    const swing=new THREE.Vector3(-Math.sin(PL.yaw),0,-Math.cos(PL.yaw));
+    PL.vel.addScaledVector(swing,PL.sprinting?.3:.15);
+    playSound('swing');
+  });
+}
+
+// ── PULL OBJECT ──────────────────────────────
+function updateGrabbedObjects(dt){
+  grabbableObjs.forEach(o=>{
+    if(!o.grabbed)return;
+    const h=GRAB[o.grabbedBy];
+    if(!h||!h.active){o.grabbed=false;return;}
+    // Pull object toward camera
+    const target=camera.position.clone().add(new THREE.Vector3(0,0,-1.5).applyQuaternion(camera.quaternion));
+    const toTarget=target.clone().sub(o.mesh.position);
+    const dist2=toTarget.length();
+    if(dist2>0.3){o.vel.addScaledVector(toTarget.normalize(),Math.min(dist2*8,30)*dt);}
+    else{o.vel.set(0,0,0);}
+    o.vel.y-=5*dt; // gravity on object
+    o.vel.multiplyScalar(.85);
+    o.mesh.position.add(o.vel.clone().multiplyScalar(dt));
+    o.mesh.rotation.x+=dt;o.mesh.rotation.y+=dt*.7;
+    // Update rope end
+    h.ropeEnd.copy(o.mesh.position);
+    h.hitPoint.copy(o.mesh.position);
+  });
+}
+
+// ════════════════════════════════════════════════
+//  HAND SCANNER
+// ════════════════════════════════════════════════
+let scannerOpen=false,scanTimer=0,scanResult=null,scanIdx=-1;
+function openScanner(idx){
+  scannerOpen=true;scanIdx=idx;scanResult=null;scanTimer=0;
+  document.getElementById('scanner-panel').classList.add('open');
+  document.getElementById('scan-status').textContent='Scanning hand...';
+  document.getElementById('scan-result').className='scan-result';
+  document.getElementById('scan-result').textContent='';
+  document.getElementById('scan-hand').textContent='🖐️';
+  updateAimState('scan');
+  if(document.pointerLockElement)document.exitPointerLock();
+  locked=false;
+  setTimeout(()=>completeScan(idx),2500);
+}
+function completeScan(idx){
+  if(!scannerOpen)return;
+  const s=scanners[idx];
+  // First scan always succeeds, subsequent randomly
+  const ok=!s.scanned||(Math.random()>.3);
+  if(ok){
+    s.scanned=true;
+    document.getElementById('scan-status').textContent='ACCESS GRANTED';
+    document.getElementById('scan-result').className='scan-result success';
+    document.getElementById('scan-result').textContent='✓ Hand Verified';
+    document.getElementById('scan-hand').textContent='✋';
+    s.panel.material.color.setHex(0x006633);s.panel.material.emissive.setHex(0x00ff88);
+    s.light.color.setHex(0x00ff88);
+    playSound('scan_ok');addFeed('🖐️ Scanner: Access Granted!');
+  }else{
+    document.getElementById('scan-status').textContent='ACCESS DENIED';
+    document.getElementById('scan-result').className='scan-result fail';
+    document.getElementById('scan-result').textContent='✗ Unrecognized';
+    document.getElementById('scan-hand').textContent='🤚';
+    playSound('scan_fail');addFeed('Scanner: Access Denied');
+  }
+  setTimeout(closeScanner,2000);
+}
+function closeScanner(){
+  scannerOpen=false;
+  document.getElementById('scanner-panel').classList.remove('open');
+  updateAimState(null);
+  if(!IS_MOBILE)document.body.requestPointerLock();else locked=true;
+}
+
+// Check if near a scanner
+function checkNearScanner(){
+  for(let i=0;i<scanners.length;i++){
+    const s=scanners[i];
+    const dx=PL.pos.x-s.x,dz=PL.pos.z-s.z;
+    if(Math.sqrt(dx*dx+dz*dz)<2.5){openScanner(i);return;}
+  }
+  showStatus('No scanner nearby');
+}
+
+// ════════════════════════════════════════════════
+//  INPUT
+// ════════════════════════════════════════════════
+const keys={};const mouse={dx:0,dy:0,L:false,R:false};
+let locked=false;
+
+window.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(['Space','KeyE','KeyQ','KeyF','KeyR','ControlLeft','ControlRight','KeyP'].includes(e.code))e.preventDefault();
+  if(e.code==='KeyE')doGrab('right');
+  if(e.code==='KeyQ')doGrab('left');
+  if(e.code==='KeyF')releaseAll();
+  if(e.code==='KeyR')checkNearScanner();
+  if(e.code==='KeyP'||e.code==='Escape'){
+    if(document.getElementById('settings').classList.contains('open'))closeSettings();
+    else openSettings();
+  }
+});
+window.addEventListener('keyup',e=>keys[e.code]=false);
+window.addEventListener('mousemove',e=>{
+  if(!locked||document.getElementById('settings').classList.contains('open')||scannerOpen)return;
+  mouse.dx+=e.movementX;mouse.dy+=e.movementY;
+});
+window.addEventListener('mousedown',e=>{
+  if(document.getElementById('settings').classList.contains('open')||scannerOpen)return;
+  if(e.button===0){mouse.L=true;if(!locked)document.body.requestPointerLock();initAudio();}
+  if(e.button===2)mouse.R=true;
+  if(e.button===0&&locked)doGrab('right');
+  if(e.button===2&&locked)doGrab('left');
+});
+window.addEventListener('mouseup',e=>{if(e.button===0)mouse.L=false;if(e.button===2)mouse.R=false;});
+window.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('pointerlockchange',()=>{
+  locked=!!document.pointerLockElement;
+  document.getElementById('cs').classList.toggle('hidden',locked||IS_MOBILE);
+});
+
+// ── MOBILE ──
+const joyInput={x:0,y:0};let mobSprint=false,mobCrouch=false;
+if(IS_MOBILE){
+  document.getElementById('cs').addEventListener('touchstart',()=>{
+    document.getElementById('cs').classList.add('hidden');locked=true;initAudio();
+  },{once:true});
+  const jz=document.getElementById('jz'),jknob=document.getElementById('jknob'),JR=50;
+  let jId=null,jOx=0,jOy=0;
+  jz.addEventListener('touchstart',e=>{const t=e.changedTouches[0],r=jz.getBoundingClientRect();
+    jId=t.identifier;jOx=r.left+r.width/2;jOy=r.top+r.height/2;e.preventDefault();},{passive:false});
+  window.addEventListener('touchmove',e=>{
+    for(const t of e.changedTouches){if(t.identifier===jId){
+      let dx=t.clientX-jOx,dy=t.clientY-jOy;const d=Math.sqrt(dx*dx+dy*dy);
+      if(d>JR){dx=dx/d*JR;dy=dy/d*JR;}
+      jknob.style.left=(50+dx/JR*50)+'%';jknob.style.top=(50+dy/JR*50)+'%';
+      joyInput.x=dx/JR;joyInput.y=dy/JR;
+    }}e.preventDefault();},{passive:false});
+  const rj=e=>{for(const t of e.changedTouches){if(t.identifier===jId){jId=null;jknob.style.left='50%';jknob.style.top='50%';joyInput.x=0;joyInput.y=0;}}};
+  window.addEventListener('touchend',rj);window.addEventListener('touchcancel',rj);
+  const lz=document.getElementById('lz');let lookId=null,llx=0,lly=0;
+  lz.addEventListener('touchstart',e=>{const t=e.changedTouches[0];lookId=t.identifier;llx=t.clientX;lly=t.clientY;e.preventDefault();},{passive:false});
+  window.addEventListener('touchmove',e=>{for(const t of e.changedTouches){if(t.identifier===lookId){mouse.dx+=(t.clientX-llx)*1.8;mouse.dy+=(t.clientY-lly)*1.8;llx=t.clientX;lly=t.clientY;}}},{passive:false});
+  window.addEventListener('touchend',e=>{for(const t of e.changedTouches)if(t.identifier===lookId)lookId=null;});
+  function mb(id,dn,up){
+    const el=document.getElementById(id);if(!el)return;
+    el.addEventListener('touchstart',e=>{dn();e.preventDefault();e.stopPropagation();},{passive:false});
+    el.addEventListener('touchend',e=>{up&&up();e.preventDefault();},{passive:false});
+    el.addEventListener('touchcancel',e=>{up&&up();});
+  }
+  mb('b-grabr',()=>{doGrab('right');initAudio();});
+  mb('b-grabl',()=>{doGrab('left');initAudio();});
+  mb('b-release',()=>releaseAll());
+  mb('b-jump',()=>{if(PL.onGround){PL.vel.y=8;PL.onGround=false;}else if(GRAB.left.active||GRAB.right.active)PL.vel.y+=3;});
+  mb('b-scan',()=>checkNearScanner());
+  mb('b-sprint',()=>{mobSprint=!mobSprint;document.getElementById('b-sprint').classList.toggle('pressed',mobSprint);});
+  mb('b-crouch',()=>{mobCrouch=!mobCrouch;document.getElementById('b-crouch').classList.toggle('pressed',mobCrouch);});
+}
+
+// ════════════════════════════════════════════════
+//  FX
+// ════════════════════════════════════════════════
+let vigA=0,shakeT=0,shakeMag=0;
+function doShake(m,d){shakeMag=m;shakeT=d;}
+function showStatus(msg){
+  const s=document.getElementById('status');s.textContent=msg;s.style.opacity='1';
+  clearTimeout(s._t);s._t=setTimeout(()=>s.style.opacity='0',2000);
+}
+function addFeed(msg){
+  const af=document.getElementById('afeed');
+  const el=document.createElement('div');el.className='aentry';el.textContent=msg;af.appendChild(el);
+  if(af.children.length>5)af.firstChild.remove();
+  setTimeout(()=>{el.classList.add('fade');setTimeout(()=>el.remove(),1200);},3500);
+}
+const dov=document.getElementById('dov');dov.width=window.innerWidth;dov.height=window.innerHeight;
+const dvx=dov.getContext('2d');
+function drawVig(){
+  dvx.clearRect(0,0,dov.width,dov.height);
+  // Permanent dark vignette
+  const g=dvx.createRadialGradient(dov.width/2,dov.height/2,dov.height*.25,dov.width/2,dov.height/2,dov.height*.7);
+  g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(0,0,0,${.4+vigA})`);
+  dvx.fillStyle=g;dvx.fillRect(0,0,dov.width,dov.height);
+  if(vigA>0)vigA=Math.max(0,vigA-.012);
+}
+
+// ════════════════════════════════════════════════
+//  FPS OPTIMIZER
+// ════════════════════════════════════════════════
+const OPT={buf:[],avg:60,lvl:2,t:0,
+  update(dt){
+    this.buf.push(1/dt);if(this.buf.length>40)this.buf.shift();
+    this.avg=this.buf.reduce((a,b)=>a+b)/this.buf.length;
+    document.getElementById('fpsv').textContent=Math.round(this.avg);
+    this.t+=dt;if(this.t>3){this.t=0;if(CFG.autoOpt){
+      if(this.avg<22&&this.lvl>0){this.lvl--;applyQuality(this.lvl);}
+      else if(this.avg>55&&this.lvl<2){this.lvl++;applyQuality(this.lvl);}
+    }}
+  }
+};
+
+// ════════════════════════════════════════════════
+//  MAIN LOOP
+// ════════════════════════════════════════════════
+let prev=performance.now(),bobT=0,eTime=0;
+
+function update(dt){
+  if(!locked&&!IS_MOBILE)return;
+  if(document.getElementById('settings').classList.contains('open')||scannerOpen)return;
+
+  eTime+=dt;
+
+  // Look
+  const inv=CFG.invertY?-1:1;
+  const sens=CFG.sens*.002;
+  PL.yaw-=mouse.dx*sens;
+  PL.pitch=Math.max(-Math.PI/2.1,Math.min(Math.PI/2.1,PL.pitch-mouse.dy*sens*inv));
+  mouse.dx=0;mouse.dy=0;
+  camera.rotation.order='YXZ';camera.rotation.y=PL.yaw;camera.rotation.x=PL.pitch;
+
+  // Movement
+  const fwd=new THREE.Vector3(-Math.sin(PL.yaw),0,-Math.cos(PL.yaw));
+  const rgt=new THREE.Vector3(Math.cos(PL.yaw),0,-Math.sin(PL.yaw));
+  let mx=0,mz=0;
+  if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;}if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;}
+  if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;}
+  if(IS_MOBILE&&(Math.abs(joyInput.x)>.05||Math.abs(joyInput.y)>.05)){
+    mx+=fwd.x*(-joyInput.y)+rgt.x*joyInput.x;mz+=fwd.z*(-joyInput.y)+rgt.z*joyInput.x;
+  }
+  const moving=mx!==0||mz!==0;
+  const wCrouch=(keys['ControlLeft']||keys['ControlRight'])||(IS_MOBILE&&mobCrouch);
+  const wSprint=(keys['ShiftLeft']||(IS_MOBILE&&mobSprint))&&!wCrouch;
+  const airborne=!PL.onGround;
+
+  // Stamina
+  if(wSprint&&moving&&PL.onGround){PL.stamina=Math.max(0,PL.stamina-20*dt);}
+  else{PL.stamina=Math.min(100,PL.stamina+15*dt);}
+
+  let speed=5;
+  if(wSprint&&PL.stamina>5){speed=9;PL.sprinting=true;}else{PL.sprinting=false;}
+  if(wCrouch)speed=2.5;
+  if(airborne)speed*=.6; // less air control
+
+  PL.crouching=wCrouch;
+  const tH=PL.crouching?PL.CH:PL.H;PL.curH+=(tH-PL.curH)*dt*12;
+
+  const len=Math.sqrt(mx*mx+mz*mz);
+  if(len>0){PL.vel.x=(mx/len)*speed;PL.vel.z=(mz/len)*speed;}
+  else{PL.vel.x*=airborne?.97:.8;PL.vel.z*=airborne?.97:.8;}
+
+  // Jump
+  if(keys['Space']&&PL.onGround){PL.vel.y=8;PL.onGround=false;playSound('footstep');}
+  // Swing jump boost
+  if(keys['Space']&&!PL.onGround&&(GRAB.left.active||GRAB.right.active)){
+    PL.vel.y+=3*dt*10;releaseAll();}
+
+  // Gravity
+  PL.vel.y-=20*dt;
+
+  // Apply swing physics
+  applySwingForce(dt);
+
+  // Move
+  PL.pos.x+=PL.vel.x*dt;PL.pos.z+=PL.vel.z*dt;PL.pos.y+=PL.vel.y*dt;
+  if(PL.pos.y<PL.curH){PL.pos.y=PL.curH;PL.vel.y=0;PL.onGround=true;}else PL.onGround=false;
+  resolveCollision(PL.pos,PL.vel);
+  PL.pos.x=Math.max(-34,Math.min(34,PL.pos.x));PL.pos.z=Math.max(-34,Math.min(34,PL.pos.z));
+  camera.position.copy(PL.pos);
+
+  if(shakeT>0){shakeT-=dt;const s=shakeMag*(shakeT/.5);camera.position.x+=(Math.random()-.5)*s;camera.position.y+=(Math.random()-.5)*s;}
+
+  // Footstep
+  if(moving&&PL.onGround){footT+=dt*(PL.sprinting?2.5:1.5);if(footT>1){footT=0;playSound('footstep');}}else footT=0;
+
+  // FOV
+  const tFov=PL.sprinting?CFG.fov*1.08:CFG.fov;
+  camera.fov+=(tFov-camera.fov)*dt*6;camera.updateProjectionMatrix();
+
+  // Arm bob + launch animation
+  bobT+=dt*(PL.sprinting?3:moving?1.8:.5);
+  // Recover arm launch anim
+  armAnim.leftZ+=(0-armAnim.leftZ)*dt*8;
+  armAnim.rightZ+=(0-armAnim.rightZ)*dt*8;
+  armAnim.leftY+=(0-armAnim.leftY)*dt*8;
+  armAnim.rightY+=(0-armAnim.rightY)*dt*8;
+  const bobY=Math.sin(bobT)*.008-(moving?.005:0);
+  const bobX=Math.sin(bobT*.5)*.004;
+  armGroup.position.y=bobY;
+  armGroup.position.x=bobX;
+  // Apply per-arm animation (push forward on grab = negative Z in camera space)
+  armLower.position.z=-.35+armAnim.leftZ;
+  armLower.position.y=-.18+armAnim.leftY;
+  gloveL.position.z=-.62+armAnim.leftZ;
+  gloveL.position.y=-.18+armAnim.leftY;
+  tubeL.position.z=-.35+armAnim.leftZ;
+  tubeL.position.y=-.21+armAnim.leftY;
+  armRower.position.z=-.35+armAnim.rightZ;
+  armRower.position.y=-.18+armAnim.rightY;
+  gloveR.position.z=-.62+armAnim.rightZ;
+  gloveR.position.y=-.18+armAnim.rightY;
+  tubeR.position.z=-.35+armAnim.rightZ;
+  tubeR.position.y=-.21+armAnim.rightY;
+
+  // Update projectiles + ropes (handles all rope drawing)
+  updateProjectiles(dt);
+
+  // Recharge grabs — hanya saat tangan sudah kembali
+  ['left','right'].forEach(hand=>{
+    const h=GRAB[hand];
+    const p=proj[hand];
+    if(!p.active&&h.charge<1){h.charge=Math.min(1,h.charge+dt*.5);}
+    const pct=h.charge*100;
+    document.getElementById('hc-'+hand).style.width=pct+'%';
+    const attached=p.active&&p.attached;
+    const flying=p.active&&!p.attached&&!p.returning;
+    const returning=p.active&&p.returning;
+    let cls='hand-icon';
+    if(attached)cls+=' grabbed';
+    else if(flying)cls+=' active';
+    else if(returning||h.charge<1)cls+=' recharging';
+    else if(hand==='right')cls+=' active';
+    document.getElementById('hi-'+hand).className=cls;
+  });
+
+  // Update grabbed objects
+  updateGrabbedObjects(dt);
+
+  // Power line flicker + electric sound
+  poles.forEach(p=>{
+    p.t+=dt*(3+Math.sin(p.t)*1.5);
+    const flick=.5+Math.sin(p.t)*.4+Math.random()*.1;
+    p.light.intensity=flick;
+    p.glowMesh.material.emissiveIntensity=flick*.5;
+    if(Math.random()<.008)playSound('electric');
+  });
+
+  // Scanner pulse
+  scanners.forEach(s=>{
+    s.t+=dt;
+    s.light.intensity=.4+Math.sin(s.t*3)*.2;
+  });
+
+  // HUD vitals
+  document.getElementById('vf-hp').style.width=PL.hp+'%';document.getElementById('vv-hp').textContent=PL.hp;
+  document.getElementById('vf-st').style.width=PL.stamina+'%';document.getElementById('vv-st').textContent=Math.ceil(PL.stamina);
+
+  drawVig();OPT.update(dt);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();const dt=Math.min((now-prev)/1000,.05);prev=now;
+  update(dt);renderer.render(scene,camera);
+}
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  dov.width=window.innerWidth;dov.height=window.innerHeight;
+});
+
+animate();
+</script>
+</body>
+</html>
